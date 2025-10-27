@@ -23,49 +23,51 @@
 //   - When a counter reaches its programmed divider value, it:
 //        * emits a single-cycle tick
 //        * resets back to 0
-//   - $clog2() is used to auto-size the counters so they are only as wide as
-//     needed for the chosen divider.
-//
+//   - Counters are fixed 16-bit wide to match the divider inputs. This avoids
+//     $clog2() / variable-width logic so it works in older Verilog toolflows.
 // -----------------------------------------------------------------------------
 module uart_baud_gen (
-    input  wire clk_50mhz,
-    input  wire rst_n,
+    input  wire        clk_50mhz,
+    input  wire        rst_n,
     input  wire [15:0] rx_divider,
     input  wire [15:0] tx_divider,
-    output wire rx_sample_tick,
-    output wire tx_bit_tick
+    output reg         rx_sample_tick,
+    output reg         tx_bit_tick
 );
 
-    // Compute counter widths from the divider values.
-    // We +1 here in case divider is 0; avoids zero-width regs in corner cases.
-    localparam integer RX_CNT_WIDTH = $clog2(16'hFFFF) + 1;
-    localparam integer TX_CNT_WIDTH = $clog2(16'hFFFF) + 1;
+    reg [15:0] rx_count;
+    reg [15:0] tx_count;
 
-    reg [RX_CNT_WIDTH-1:0] rx_count = {RX_CNT_WIDTH{1'b0}};
-    reg [TX_CNT_WIDTH-1:0] tx_count = {TX_CNT_WIDTH{1'b0}};
-
-    assign rx_sample_tick = (rx_count == {RX_CNT_WIDTH{1'b0}});
-    assign tx_bit_tick    = (tx_count == {TX_CNT_WIDTH{1'b0}});
-
+    // RX oversample tick generator (e.g. 16× baud)
     always @(posedge clk_50mhz) begin
         if (!rst_n) begin
-            rx_count <= {RX_CNT_WIDTH{1'b0}};
-        end else if (rx_count == rx_divider[RX_CNT_WIDTH-1:0]) begin
-            rx_count <= {RX_CNT_WIDTH{1'b0}};
+            rx_count       <= 16'd0;
+            rx_sample_tick <= 1'b0;
         end else begin
-            rx_count <= rx_count + 1'b1;
+            if (rx_count == rx_divider) begin
+                rx_count       <= 16'd0;
+                rx_sample_tick <= 1'b1; 
+            end else begin
+                rx_count       <= rx_count + 16'd1;
+                rx_sample_tick <= 1'b0;
+            end
         end
     end
 
+    // TX bit tick generator (1× baud)
     always @(posedge clk_50mhz) begin
         if (!rst_n) begin
-            tx_count <= {TX_CNT_WIDTH{1'b0}};
-        end
-        else if (tx_count == tx_divider[TX_CNT_WIDTH-1:0]) begin
-            tx_count <= {TX_CNT_WIDTH{1'b0}};
-        end
-        else begin
-            tx_count <= tx_count + 1'b1;
+            tx_count     <= 16'd0;
+            tx_bit_tick  <= 1'b0;
+        end else begin
+            if (tx_count == tx_divider) begin
+                tx_count     <= 16'd0;
+                tx_bit_tick  <= 1'b1;    
+            end else begin
+                tx_count     <= tx_count + 16'd1;
+                tx_bit_tick  <= 1'b0;
+            end
         end
     end
+
 endmodule
