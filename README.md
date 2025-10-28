@@ -1,7 +1,7 @@
 # UART-Module-in-Verilog
 
 Digital System Design (BECE102L) Project  
-Author: Atharva Sheersh
+Author: Atharva Sheersh Pandey, Aayush Jaiswal, Satyam Bhalotia under the guidance of Prof. Naveen Mishra
 
 ## Summary
 
